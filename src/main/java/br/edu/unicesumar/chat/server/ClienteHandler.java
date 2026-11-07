@@ -16,6 +16,7 @@ public final class ClienteHandler implements Runnable {
     private final Servidor servidor;
     private PrintWriter saida;
     private Usuario usuario;
+    private String grupo = "Geral";
 
     ClienteHandler(Socket socket, Servidor servidor) {
         this.socket = socket;
@@ -32,15 +33,27 @@ public final class ClienteHandler implements Runnable {
             if (nome == null) return;
             usuario = new Usuario(nome);
 
-            servidor.enviarHistoricoPara(this);
             servidor.adicionarCliente(this);
-            enviar("Conectado como " + usuario.getNome() + ". Digite /sair para encerrar.");
+            servidor.enviarHistoricoPara(this, grupo);
+            enviar("Conectado como " + usuario.getNome() + ". Digite /grupo Nome para trocar de grupo ou /sair para encerrar.");
 
             String texto;
             while ((texto = entrada.readLine()) != null) {
                 if ("/sair".equalsIgnoreCase(texto.trim())) break;
+                if (texto.startsWith("/grupo ")) {
+                    String novoGrupo = texto.substring(7).trim();
+                    if (!novoGrupo.matches("[\\p{L}\\p{N} _-]{1,40}")) enviar("Erro: nome do grupo invalido.");
+                    else servidor.mudarGrupo(this, novoGrupo);
+                    continue;
+                }
+                if (texto.startsWith("/convidar ")) {
+                    String convidado = texto.substring(10).trim();
+                    if (convidado.isEmpty()) enviar("Erro: informe o nome da pessoa.");
+                    else servidor.convidar(this, convidado);
+                    continue;
+                }
                 try {
-                    servidor.receber(new Mensagem(usuario, texto, LocalDateTime.now()));
+                    servidor.receber(new Mensagem(usuario, texto, LocalDateTime.now(), grupo));
                 } catch (IllegalArgumentException e) {
                     enviar("Erro: " + e.getMessage());
                 }
@@ -61,4 +74,7 @@ public final class ClienteHandler implements Runnable {
     public Usuario getUsuario() {
         return usuario;
     }
+
+    public String getGrupo() { return grupo; }
+    void definirGrupo(String grupo) { this.grupo = grupo; }
 }

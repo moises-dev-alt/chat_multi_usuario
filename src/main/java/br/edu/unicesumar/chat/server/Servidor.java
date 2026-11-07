@@ -56,9 +56,9 @@ public final class Servidor implements AutoCloseable {
         }
     }
 
-    void enviarHistoricoPara(ClienteHandler cliente) {
-        cliente.enviar("--- Ultimas mensagens ---");
-        for (Mensagem mensagem : repository.buscarUltimas(LIMITE_HISTORICO)) {
+    void enviarHistoricoPara(ClienteHandler cliente, String grupo) {
+        cliente.enviar("--- Ultimas mensagens de " + grupo + " ---");
+        for (Mensagem mensagem : repository.buscarUltimas(grupo, LIMITE_HISTORICO)) {
             cliente.enviar(mensagem.formatar());
         }
         cliente.enviar("--- Fim do historico ---");
@@ -67,12 +67,37 @@ public final class Servidor implements AutoCloseable {
     /** Salva antes de distribuir para que o historico nao perca mensagens transmitidas. */
     void receber(Mensagem mensagem) {
         repository.salvar(mensagem);
-        broadcast(mensagem.formatar());
+        broadcast(mensagem.getGrupo(), mensagem.formatar());
     }
 
     void broadcast(String texto) {
         for (ClienteHandler cliente : clientes) {
             cliente.enviar(texto);
+        }
+    }
+
+    void mudarGrupo(ClienteHandler cliente, String grupo) {
+        cliente.definirGrupo(grupo);
+        cliente.enviar("__LIMPAR_HISTORICO__");
+        enviarHistoricoPara(cliente, grupo);
+        cliente.enviar("Conectado ao grupo: " + grupo + ".");
+    }
+
+    /** Envia um convite; a pessoa convidada decide se quer entrar no grupo. */
+    void convidar(ClienteHandler origem, String nomeConvidado) {
+        for (ClienteHandler cliente : clientes) {
+            if (cliente.getUsuario() != null && cliente.getUsuario().getNome().equalsIgnoreCase(nomeConvidado)) {
+                cliente.enviar("__CONVITE_GRUPO__" + origem.getGrupo());
+                origem.enviar("Convite enviado para " + cliente.getUsuario().getNome() + ".");
+                return;
+            }
+        }
+        origem.enviar("Usuario '" + nomeConvidado + "' nao esta conectado.");
+    }
+
+    void broadcast(String grupo, String texto) {
+        for (ClienteHandler cliente : clientes) {
+            if (grupo.equals(cliente.getGrupo())) cliente.enviar(texto);
         }
     }
 
